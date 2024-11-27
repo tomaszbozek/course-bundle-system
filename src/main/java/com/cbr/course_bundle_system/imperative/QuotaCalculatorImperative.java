@@ -1,108 +1,124 @@
 package com.cbr.course_bundle_system.imperative;
 
 import com.cbr.course_bundle_system.QuotaCalculator;
-import lombok.RequiredArgsConstructor;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Imperative approach for quota calculation.
  */
-@RequiredArgsConstructor
 public class QuotaCalculatorImperative implements QuotaCalculator {
+    private static final double TWO_TOPICS_COEFFICIENT = 0.1;
+    private static final double FIRST_TOPIC_COEFFICIENT = 0.2;
+    private static final double SECOND_TOPIC_COEFFICIENT = 0.25;
+    private static final double THIRD_TOPIC_COEFFICIENT = 0.3;
+
     private final Map<String, String> providerOfferings;
+
+    public QuotaCalculatorImperative(Map<String, String> providerOfferings) {
+        this.providerOfferings = providerOfferings;
+    }
 
     @Override
     public Map<String, Double> calculate(Map<String, Integer> topics) {
-        Map<String, Integer> topTopics = topTopics(topics);
-        Map<String, List<Integer>> topicToCountAndImportance = getTopTopicsToCountAndImportance(topTopics);
-        return calculateQuotas(topics, topicToCountAndImportance, topTopics);
+        Map<String, Integer> topTopics = getTopThreeTopics(topics);
+        return calculateQuotas(topTopics);
     }
 
-    public Map<String, Double> calculateQuotas(Map<String, Integer> topics, Map<String, List<Integer>> topicToCountAndImportance, Map<String, Integer> topTopics) {
-        Map<String, Double> resultQuotas = new LinkedHashMap<>(3);
-        for (Map.Entry<String, List<Integer>> statsEntry : topicToCountAndImportance.entrySet()) {
-            List<Integer> statsEntryValue = statsEntry.getValue();
-            Integer matchCount = statsEntryValue.get(0);
-            if (matchCount < 1 || matchCount > 2) {
-                throw new IllegalArgumentException(String.format("Invalid topic match count: %s", matchCount));
-            }
-            if (matchCount == 2) {
-                String[] providerTopics = providerOfferings.get(statsEntry.getKey()).split("\\+");
-                double value = 0.1 * (topTopics.get(providerTopics[0]) + topics.get(providerTopics[1]));
-                if (value != 0) {
-                    resultQuotas.put(statsEntry.getKey(), value);
-                }
-            } else {
-                int importance = statsEntryValue.get(1);
-                switch (importance) {
-                    case 0 -> {
-                        double value = 0.2 * firstValue(topTopics);
-                        if (value != 0) {
-                            resultQuotas.put(statsEntry.getKey(), value);
-                        }
-                    }
-
-                    case 1 -> {
-                        double value = 0.25 * secondValue(topTopics);
-                        if (value != 0) {
-                            resultQuotas.put(statsEntry.getKey(), value);
-                        }
-                    }
-
-                    case 2 -> {
-                        double value = 0.3 * thirdValue(topTopics);
-                        if (value != 0) {
-                            resultQuotas.put(statsEntry.getKey(), value);
-                        }
-                    }
-                }
-            }
-        }
-        return resultQuotas;
+    /**
+     * Retrieves the top three topics based on their values.
+     */
+    private Map<String, Integer> getTopThreeTopics(Map<String, Integer> topics) {
+        return topics.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+                .limit(3)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
     }
 
-    private Map<String, List<Integer>> getTopTopicsToCountAndImportance(Map<String, Integer> topTopics) {
-        Map<String, List<Integer>> topicToCountAndImportance = new HashMap<>(topTopics.size());
+    /**
+     * Calculates the quotas for providers based on the top topics.
+     */
+    private Map<String, Double> calculateQuotas(Map<String, Integer> topTopics) {
+        Map<String, Double> quotas = new LinkedHashMap<>();
+
+        Map<String, Integer> topicRanks = assignTopicRanks(topTopics);
+
         for (Map.Entry<String, String> providerEntry : providerOfferings.entrySet()) {
-            Set<String> providerTopics = Set.of(providerEntry.getValue().split("\\+"));
-            int topicCount = 0;
-            int topicImportance = 0;
-            for (Map.Entry<String, Integer> topicEntry : topTopics.entrySet()) {
-                if (providerTopics.contains(topicEntry.getKey())) {
-                    topicCount++;
-                    topicImportance++;
+            String providerName = providerEntry.getKey();
+            Set<String> providerTopics = parseProviderTopics(providerEntry.getValue());
+
+            Set<String> matchedTopics = getMatchedTopics(providerTopics, topTopics.keySet());
+
+            switch (matchedTopics.size()) {
+                case 2 -> quotas.put(providerName, calculateTwoTopicsQuota(matchedTopics, topTopics));
+                case 1 -> {
+                    String matchedTopic = matchedTopics.iterator().next();
+                    quotas.put(providerName, calculateSingleTopicQuota(matchedTopic, topTopics, topicRanks));
                 }
             }
-            if (!topicToCountAndImportance.containsKey(providerEntry.getKey()) && topicCount > 0) {
-                topicToCountAndImportance.put(providerEntry.getKey(), List.of(topicCount, topicImportance - 1));
-            }
         }
-        return topicToCountAndImportance;
+
+        return quotas;
     }
 
-    public double firstValue(Map<String, Integer> topics) {
-        return topics.values().stream().findFirst().orElseThrow();
+    /**
+     * Assigns ranks to topics based on their order in the top topics.
+     */
+    private Map<String, Integer> assignTopicRanks(Map<String, Integer> topTopics) {
+        Map<String, Integer> topicRanks = new HashMap<>();
+        int rank = 0;
+        for (String topic : topTopics.keySet()) {
+            topicRanks.put(topic, rank++);
+        }
+        return topicRanks;
     }
 
-    public double secondValue(Map<String, Integer> topics) {
-        return topics.values().stream().skip(1).findFirst().orElseThrow();
+    /**
+     * Parses the provider's offerings into a set of topics.
+     */
+    private Set<String> parseProviderTopics(String offerings) {
+        return new HashSet<>(Arrays.asList(offerings.split("\\+")));
     }
 
-    public double thirdValue(Map<String, Integer> topics) {
-        return topics.values().stream().skip(2).findFirst().orElseThrow();
+    /**
+     * Retrieves the set of topics that match between the provider and top topics.
+     */
+    private Set<String> getMatchedTopics(Set<String> providerTopics, Set<String> topTopics) {
+        Set<String> matchedTopics = new HashSet<>(providerTopics);
+        matchedTopics.retainAll(topTopics);
+        return matchedTopics;
     }
 
-    public Map<String, Integer> topTopics(Map<String, Integer> topTopics) {
-        List<Map.Entry<String, Integer>> entryList = topTopics.entrySet()
-                .stream().sorted(Map.Entry.comparingByValue(Comparator.reverseOrder())).toList();
-        Map<String, Integer> topsResults = new LinkedHashMap<>(3);
-        Map.Entry<String, Integer> firstEntry = entryList.get(0);
-        topsResults.put(firstEntry.getKey(), firstEntry.getValue());
-        Map.Entry<String, Integer> secondEntry = entryList.get(1);
-        topsResults.put(secondEntry.getKey(), secondEntry.getValue());
-        Map.Entry<String, Integer> thirdEntry = entryList.get(2);
-        topsResults.put(thirdEntry.getKey(), thirdEntry.getValue());
-        return topsResults;
+    /**
+     * Calculates the quota for providers matching two topics.
+     */
+    private double calculateTwoTopicsQuota(Set<String> matchedTopics, Map<String, Integer> topTopics) {
+        int totalValue = matchedTopics.stream()
+                .mapToInt(topTopics::get)
+                .sum();
+        return TWO_TOPICS_COEFFICIENT * totalValue;
+    }
+
+    /**
+     * Calculates the quota for providers matching a single topic.
+     */
+    private double calculateSingleTopicQuota(String topic, Map<String, Integer> topTopics, Map<String, Integer> topicRanks) {
+        int topicValue = topTopics.get(topic);
+        int rank = topicRanks.get(topic);
+
+        double coefficient = switch (rank) {
+            case 0 -> FIRST_TOPIC_COEFFICIENT;
+            case 1 -> SECOND_TOPIC_COEFFICIENT;
+            case 2 -> THIRD_TOPIC_COEFFICIENT;
+            default -> 0.0;
+        };
+
+        return coefficient * topicValue;
     }
 }
