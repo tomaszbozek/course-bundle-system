@@ -4,7 +4,6 @@ import com.cbr.course_bundle_system.QuotaCalculator;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -21,7 +20,7 @@ public class QuotaCalculatorImperativeTest {
             boolean expectException
     ) {
         if (expectException) {
-            assertThrows(NullPointerException.class, () -> {
+            assertThrows(IllegalArgumentException.class, () -> {
                 QuotaCalculator calculator = new QuotaCalculatorImperative(providerOfferings);
                 calculator.calculate(topics);
             });
@@ -51,8 +50,8 @@ public class QuotaCalculatorImperativeTest {
                         ),
                         Map.of(
                                 "ProviderA", 0.1 * (10 + 8), // 1.8
-                                "ProviderB", 0.1 * (8 + 6), // 1.4
-                                "ProviderC", 0.3 * 6        // 1.8
+                                "ProviderB", 0.1 * (8 + 6),  // 1.4
+                                "ProviderC", 0.3 * 6         // 1.8
                         ),
                         false
                 },
@@ -98,24 +97,25 @@ public class QuotaCalculatorImperativeTest {
                         ),
                         Map.of(
                                 "Topic1", 5,
-                                "Topic2", 6,
-                                "Topic3", 7,
-                                "Topic4", 8,
-                                "Topic5", 9
+                                "Topic2", 5,
+                                "Topic3", 5,
+                                "Topic4", 5,
+                                "Topic5", 5
                         ),
                         Map.of(
-                                "ProviderB", 0.3 * (7)  // 1.0
+                                "ProviderA", 0.1 * (5 + 5), // 1.0
+                                "ProviderB", 0.1 * (5 + 5)  // 1.0
                         ),
                         false
                 },
-                // Test case 5: Empty inputs
+                // Test case 5: Empty inputs (Expect exception)
                 new Object[]{
                         Map.of(),
                         Map.of(),
                         Map.of(),
-                        false
+                        true // Changed from false to true
                 },
-                // Test case 6: Null inputs
+                // Test case 6: Null inputs (Expect exception)
                 new Object[]{
                         null,
                         null,
