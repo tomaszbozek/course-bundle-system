@@ -167,20 +167,12 @@ public class QuotaCalculatorImperative implements QuotaCalculator {
         int topicValue = topTopics.get(topic);
         int rank = topicRanks.getOrDefault(topic, -1);
 
-        double coefficient;
-        switch (rank) {
-            case 0:
-                coefficient = FIRST_TOPIC_COEFFICIENT;
-                break;
-            case 1:
-                coefficient = SECOND_TOPIC_COEFFICIENT;
-                break;
-            case 2:
-                coefficient = THIRD_TOPIC_COEFFICIENT;
-                break;
-            default:
-                coefficient = 0.0;
-        }
+        double coefficient = switch (rank) {
+            case 0 -> FIRST_TOPIC_COEFFICIENT;
+            case 1 -> SECOND_TOPIC_COEFFICIENT;
+            case 2 -> THIRD_TOPIC_COEFFICIENT;
+            default -> 0.0;
+        };
 
         return coefficient * topicValue;
     }
