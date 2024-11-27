@@ -14,3 +14,6 @@ than using reflection and other hacks ;)
   covered. Object oriented approach generates too many classes until it's really needed.
 - I prepared some set of junits and one integration test
 - Application runs as standalone spring boot application
+
+# how to run it?
+- run as standalone spring boot application by running from IntelliJ class 'CourseBundleSystemApplication.java' 
